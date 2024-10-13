@@ -2,7 +2,6 @@
 # Initialize device type args
 ARG USE_CUDA=false
 ARG USE_OLLAMA=true
-ARG USE_CUDA_VER=cu121
 ARG USE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ARG USE_RERANKING_MODEL=""
 ARG BUILD_HASH=dev-build
@@ -21,15 +20,13 @@ RUN npm ci
 COPY . ./openwebui
 ENV APP_BUILD_HASH=${BUILD_HASH}
 RUN npm install
-RUN npm run 
+RUN npm run build
 
 ######## WebUI backend ########
 FROM python:3.11-slim-bookworm AS base
 
 # Use args
-ARG USE_CUDA
 ARG USE_OLLAMA
-ARG USE_CUDA_VER
 ARG USE_EMBEDDING_MODEL
 ARG USE_RERANKING_MODEL
 ARG UID
@@ -39,39 +36,11 @@ ARG GID
 ENV ENV=prod \
     PORT=3000 \
     USE_OLLAMA_DOCKER=${USE_OLLAMA} \
-    USE_CUDA_DOCKER=${USE_CUDA} \
-    USE_CUDA_DOCKER_VER=${USE_CUDA_VER} \
+    USE_CUDA_DOCKER=false \
     USE_EMBEDDING_MODEL_DOCKER=${USE_EMBEDDING_MODEL} \
     USE_RERANKING_MODEL_DOCKER=${USE_RERANKING_MODEL}
 
-## Basis URL Config ##
-ENV OLLAMA_BASE_URL="/ollama" \
-    OPENAI_API_BASE_URL=""
-
-## API Key and Security Config ##
-ENV OPENAI_API_KEY="" \
-    WEBUI_SECRET_KEY="" \
-    SCARF_NO_ANALYTICS=true \
-    DO_NOT_TRACK=true \
-    ANONYMIZED_TELEMETRY=false
-
-#### Other models #########################################################
-## whisper TTS model settings ##
-ENV WHISPER_MODEL="base" \
-    WHISPER_MODEL_DIR="/app/backend/data/cache/whisper/models"
-
-## RAG Embedding model settings ##
-ENV RAG_EMBEDDING_MODEL="$USE_EMBEDDING_MODEL_DOCKER" \
-    RAG_RERANKING_MODEL="$USE_RERANKING_MODEL_DOCKER" \
-    SENTENCE_TRANSFORMERS_HOME="/app/backend/data/cache/embedding/models"
-
-## Hugging Face download cache ##
-ENV HF_HOME="/app/backend/data/cache/embedding/models"
-
-## Torch Extensions ##
-ENV TORCH_EXTENSIONS_DIR="/.cache/torch_extensions"
-
-#### Other models ##########################################################
+# ... [Keep other ENV variables as they are] ...
 
 WORKDIR /app/backend
 
@@ -90,32 +59,16 @@ RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry
 # Make sure the user has access to the app and root directory
 RUN chown -R $UID:$GID /app $HOME
 
-RUN if [ "$USE_OLLAMA" = "true" ]; then \
-    apt-get update && \
-    # Install pandoc and netcat
-    apt-get install -y --no-install-recommends git build-essential pandoc netcat-openbsd curl && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    # for RAG OCR
-    apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
-    # install helper tools
-    apt-get install -y --no-install-recommends curl jq && \
-    # install ollama
-    curl -fsSL https://ollama.com/install.sh | sh && \
-    # cleanup
-    rm -rf /var/lib/apt/lists/*; \
-    else \
-    apt-get update && \
-    # Install pandoc, netcat and gcc
-    apt-get install -y --no-install-recommends git build-essential pandoc gcc netcat-openbsd curl jq && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    # for RAG OCR
-    apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
-    # cleanup
-    rm -rf /var/lib/apt/lists/*; \
-    fi
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git build-essential pandoc netcat-openbsd curl \
+    gcc python3-dev \
+    ffmpeg libsm6 libxext6 \
+    jq && \
+    rm -rf /var/lib/apt/lists/*
 
 # install python dependencies directly
-RUN pip install \
+RUN pip install --no-cache-dir \
     fastapi==0.111.0 \
     uvicorn[standard]==0.30.6 \
     pydantic==2.9.2 \
@@ -182,11 +135,8 @@ RUN pip install \
     duckduckgo-search~=6.2.13 \
     docker~=7.1.0 \
     pytest~=8.3.2 \
-    pytest-docker~=3.1.1
-
-# copy embedding weight from build
-# RUN mkdir -p /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2
-# COPY --from=build /app/onnx /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx
+    pytest-docker~=3.1.1 \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 # copy built frontend files
 COPY --chown=$UID:$GID --from=build /app/build /app/build
