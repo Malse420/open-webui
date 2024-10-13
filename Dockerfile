@@ -13,60 +13,6 @@ FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
 ARG BUILD_HASH
 
 WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY . ./openwebui
-ENV APP_BUILD_HASH=${BUILD_HASH}
-RUN npm install
-RUN npm run dev
-
-######## WebUI backend ########
-FROM python:3.11-slim-bookworm AS base
-
-# Use args
-ARG USE_OLLAMA
-ARG USE_EMBEDDING_MODEL
-ARG USE_RERANKING_MODEL
-ARG UID
-ARG GID
-
-## Basis ##
-ENV ENV=prod \
-    PORT=3000 \
-    USE_OLLAMA_DOCKER=${USE_OLLAMA} \
-    USE_CUDA_DOCKER=false \
-    USE_EMBEDDING_MODEL_DOCKER=${USE_EMBEDDING_MODEL} \
-    USE_RERANKING_MODEL_DOCKER=${USE_RERANKING_MODEL}
-
-# ... [Keep other ENV variables as they are] ...
-
-WORKDIR /app/backend
-
-ENV HOME=/root
-# Create user and group if not root
-RUN if [ $UID -ne 0 ]; then \
-    if [ $GID -ne 0 ]; then \
-    addgroup --gid $GID app; \
-    fi; \
-    adduser --uid $UID --gid $GID --home $HOME --disabled-password --no-create-home app; \
-    fi
-
-RUN mkdir -p $HOME/.cache/chroma
-RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry_user_id
-
-# Make sure the user has access to the app and root directory
-RUN chown -R $UID:$GID /app $HOME
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    git build-essential pandoc netcat-openbsd curl \
-    gcc python3-dev \
-    ffmpeg libsm6 libxext6 \
-    jq && \
-    rm -rf /var/lib/apt/lists/*
-
 # install python dependencies directly
 RUN pip install --no-cache-dir \
     fastapi==0.111.0 \
@@ -137,6 +83,59 @@ RUN pip install --no-cache-dir \
     pytest~=8.3.2 \
     pytest-docker~=3.1.1 \
     --extra-index-url https://download.pytorch.org/whl/cpu
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . ./openwebui
+ENV APP_BUILD_HASH=${BUILD_HASH}
+RUN npm install
+
+######## WebUI backend ########
+FROM python:3.11-slim-bookworm AS base
+
+# Use args
+ARG USE_OLLAMA
+ARG USE_EMBEDDING_MODEL
+ARG USE_RERANKING_MODEL
+ARG UID
+ARG GID
+
+## Basis ##
+ENV ENV=prod \
+    PORT=3000 \
+    USE_OLLAMA_DOCKER=${USE_OLLAMA} \
+    USE_CUDA_DOCKER=false \
+    USE_EMBEDDING_MODEL_DOCKER=${USE_EMBEDDING_MODEL} \
+    USE_RERANKING_MODEL_DOCKER=${USE_RERANKING_MODEL}
+
+# ... [Keep other ENV variables as they are] ...
+
+WORKDIR /app/backend
+
+ENV HOME=/root
+# Create user and group if not root
+RUN if [ $UID -ne 0 ]; then \
+    if [ $GID -ne 0 ]; then \
+    addgroup --gid $GID app; \
+    fi; \
+    adduser --uid $UID --gid $GID --home $HOME --disabled-password --no-create-home app; \
+    fi
+
+RUN mkdir -p $HOME/.cache/chroma
+RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry_user_id
+
+# Make sure the user has access to the app and root directory
+RUN chown -R $UID:$GID /app $HOME
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git build-essential pandoc netcat-openbsd curl \
+    gcc python3-dev \
+    ffmpeg libsm6 libxext6 \
+    jq && \
+    rm -rf /var/lib/apt/lists/*
+
 
 # copy built frontend files
 COPY --chown=$UID:$GID --from=build /app/build /app/build
