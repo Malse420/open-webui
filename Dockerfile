@@ -26,6 +26,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+COPY requirements.txt /app/requirements.txt
 ENV APP_BUILD_HASH=${BUILD_HASH}
 RUN npm run build
 
