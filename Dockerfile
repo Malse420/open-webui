@@ -11,7 +11,7 @@ COPY . .
 
 # Run important npm commands
 RUN npm run pyodide:fetch
-RUN npm install -g ollama  # Global installation of ollama
+RUN npm install -g ollama
 RUN npm run build
 
 ENV APP_BUILD_HASH=${BUILD_HASH}
