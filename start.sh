@@ -12,6 +12,7 @@ fi
 
 # Start the frontend
 echo "Starting frontend..."
+npm install
 npm run build
 npm run preview &
 
