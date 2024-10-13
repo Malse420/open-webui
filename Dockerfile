@@ -1,13 +1,3 @@
-# syntax=docker/dockerfile:1
-# Initialize device type args
-ARG USE_CUDA=false
-ARG USE_OLLAMA=true
-ARG USE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-ARG USE_RERANKING_MODEL=""
-ARG BUILD_HASH=dev-build
-ARG UID=0
-ARG GID=0
-
 ######## WebUI frontend ########
 FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
 ARG BUILD_HASH
@@ -21,7 +11,7 @@ COPY . .
 
 # Run important npm commands
 RUN npm run pyodide:fetch
-RUN npm install ollama
+RUN npm install -g ollama  # Global installation of ollama
 RUN npm run build
 
 ENV APP_BUILD_HASH=${BUILD_HASH}
