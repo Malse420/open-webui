@@ -20,8 +20,8 @@ RUN npm ci
 
 COPY . ./openwebui
 ENV APP_BUILD_HASH=${BUILD_HASH}
-RUN npm install --verbose
-RUN npm run build --verbose
+RUN npm install
+RUN npm run build
 
 ######## WebUI backend ########
 FROM python:3.11-slim-bookworm AS base
