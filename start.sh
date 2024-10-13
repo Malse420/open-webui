@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Update models and other dependencies
+echo "Updating models and dependencies..."
+npm run pyodide:fetch
+
 # Start the Ollama service if configured
 if [[ "${USE_OLLAMA_DOCKER,,}" == "true" ]]; then
     echo "Starting Ollama service..."
